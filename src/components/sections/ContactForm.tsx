@@ -1,189 +1,215 @@
 "use client";
-
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { services } from "@/lib/content";
-
-const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Enter a valid work email"),
-  company: z.string().min(1, "Company is required"),
-  title: z.string().min(1, "Title/Role is required"),
-  companySize: z.string().min(1, "Please select company size"),
-  primaryInterest: z.string().min(1, "Please select a primary interest"),
-  message: z.string().optional(),
-  website: z.string().max(0).optional(),
-});
-
-type FormData = z.infer<typeof schema>;
-
-const COMPANY_SIZES = [
-  "$50M–$100M revenue",
-  "$100M–$500M revenue",
-  "$500M–$1B revenue",
-  "$1B+ revenue",
-];
-
+import { useRef, useState } from "react";
+import Link from "next/link";
+import { companySizes, interests } from "@/lib/contact-schema";
+type Errors = Record<string, string[]>;
 export default function ContactForm() {
-  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
-
-  const onSubmit = async (data: FormData) => {
+  const [status, setStatus] = useState<
+    "idle" | "sending" | "success" | "error"
+  >("idle");
+  const [message, setMessage] = useState("");
+  const [errors, setErrors] = useState<Errors>({});
+  const requestId = useRef<string | null>(null);
+  const notice = useRef<HTMLDivElement>(null);
+  const focusNotice = () =>
+    requestAnimationFrame(() => notice.current?.focus());
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (status === "sending") return;
+    const form = event.currentTarget;
+    const fields = Object.fromEntries(new FormData(form).entries());
+    if (!requestId.current) requestId.current = crypto.randomUUID();
+    const utm: Record<string, string> = {};
+    const params = new URLSearchParams(window.location.search);
+    for (const key of [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_content",
+      "utm_term",
+    ]) {
+      const value = params.get(key);
+      if (value) utm[key] = value.slice(0, 200);
+    }
+    setStatus("sending");
+    setErrors({});
+    setMessage("");
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...fields,
+          requestId: requestId.current,
+          source: "/contact",
+          utm,
+        }),
+        signal: AbortSignal.timeout(15000),
       });
-      if (!res.ok) throw new Error("Submission failed");
+      const result = await res.json();
+      if (
+        !res.ok ||
+        result.ok !== true ||
+        typeof result.receiptId !== "string" ||
+        !result.receiptId.trim()
+      ) {
+        setErrors(result.fields || {});
+        setMessage(
+          typeof result.error === "string"
+            ? result.error
+            : "We could not confirm delivery. Please try again.",
+        );
+        setStatus("error");
+        const first = Object.keys(result.fields || {})[0];
+        const input = first ? form.elements.namedItem(first) : null;
+        if (input instanceof HTMLElement) input.focus();
+        else focusNotice();
+        return;
+      }
       setStatus("success");
+      focusNotice();
     } catch {
       setStatus("error");
+      setMessage(
+        "We could not confirm delivery. Check your connection and try again.",
+      );
+      focusNotice();
     }
-  };
-
-  if (status === "success") {
+  }
+  const invalid = (name: string) => ({
+    "aria-invalid": !!errors[name],
+    "aria-describedby": errors[name] ? `${name}-error` : undefined,
+  });
+  const error = (name: string) =>
+    errors[name] ? (
+      <p className="field-error" id={`${name}-error`}>
+        {errors[name][0]}
+      </p>
+    ) : null;
+  if (status === "success")
     return (
-      <div className="rounded border border-gold bg-gold/10 p-6 text-sm text-ink">
-        Thank you — your message has been received. We&apos;ll follow up
-        shortly.
+      <div className="form-success" role="status" ref={notice} tabIndex={-1}>
+        <h3>Your message has been received.</h3>
+        <p>
+          Thank you for sharing your priorities. A session is booked only when
+          you select a time and receive confirmation through the scheduler.
+        </p>
       </div>
     );
-  }
-
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div>
-        <label className="block text-xs uppercase tracking-wider text-grey">
-          Name
-        </label>
-        <input
-          {...register("name")}
-          className="mt-1 w-full border-b border-grey bg-transparent py-2 text-sm focus:border-gold focus:outline-none"
-        />
-        {errors.name && (
-          <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>
-        )}
-      </div>
-      <div>
-        <label className="block text-xs uppercase tracking-wider text-grey">
-          Work Email
-        </label>
-        <input
-          {...register("email")}
-          className="mt-1 w-full border-b border-grey bg-transparent py-2 text-sm focus:border-gold focus:outline-none"
-        />
-        {errors.email && (
-          <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>
-        )}
-      </div>
-      <div>
-        <label className="block text-xs uppercase tracking-wider text-grey">
-          Company
-        </label>
-        <input
-          {...register("company")}
-          className="mt-1 w-full border-b border-grey bg-transparent py-2 text-sm focus:border-gold focus:outline-none"
-        />
-        {errors.company && (
-          <p className="mt-1 text-xs text-red-600">
-            {errors.company.message}
-          </p>
-        )}
-      </div>
-      <div>
-        <label className="block text-xs uppercase tracking-wider text-grey">
-          Title / Role
-        </label>
-        <input
-          {...register("title")}
-          className="mt-1 w-full border-b border-grey bg-transparent py-2 text-sm focus:border-gold focus:outline-none"
-        />
-        {errors.title && (
-          <p className="mt-1 text-xs text-red-600">{errors.title.message}</p>
-        )}
-      </div>
-      <div>
-        <label className="block text-xs uppercase tracking-wider text-grey">
-          Company Size
+    <form
+      onSubmit={submit}
+      className="contact-form"
+      aria-busy={status === "sending"}
+    >
+      {(
+        [
+          ["name", "Name", "name", "text", 120],
+          ["email", "Work email", "email", "email", 254],
+          ["company", "Company", "organization", "text", 160],
+          ["title", "Title / role", "organization-title", "text", 160],
+        ] as const
+      ).map(([name, label, autocomplete, type, max]) => (
+        <div className="form-field" key={name}>
+          <label htmlFor={name}>
+            {label} <span aria-hidden="true">*</span>
+          </label>
+          <input
+            id={name}
+            name={name}
+            type={type}
+            autoComplete={autocomplete}
+            required
+            maxLength={max}
+            {...invalid(name)}
+          />
+          {error(name)}
+        </div>
+      ))}
+      <div className="form-field">
+        <label htmlFor="companySize">
+          Company size <span aria-hidden="true">*</span>
         </label>
         <select
-          {...register("companySize")}
-          className="mt-1 w-full border-b border-grey bg-transparent py-2 text-sm focus:border-gold focus:outline-none"
+          id="companySize"
+          name="companySize"
+          required
           defaultValue=""
+          {...invalid("companySize")}
         >
           <option value="" disabled>
-            Select...
+            Select company size
           </option>
-          {COMPANY_SIZES.map((size) => (
-            <option key={size} value={size}>
-              {size}
-            </option>
+          {companySizes.map((v) => (
+            <option key={v}>{v}</option>
           ))}
         </select>
-        {errors.companySize && (
-          <p className="mt-1 text-xs text-red-600">
-            {errors.companySize.message}
-          </p>
-        )}
+        {error("companySize")}
       </div>
-      <div>
-        <label className="block text-xs uppercase tracking-wider text-grey">
-          Primary Interest
+      <div className="form-field">
+        <label htmlFor="primaryInterest">
+          Primary interest <span aria-hidden="true">*</span>
         </label>
         <select
-          {...register("primaryInterest")}
-          className="mt-1 w-full border-b border-grey bg-transparent py-2 text-sm focus:border-gold focus:outline-none"
-          defaultValue=""
+          id="primaryInterest"
+          name="primaryInterest"
+          required
+          defaultValue="AI Adoption Review"
+          {...invalid("primaryInterest")}
         >
-          <option value="" disabled>
-            Select...
-          </option>
-          {services.map((s) => (
-            <option key={s.slug} value={s.slug}>
-              {s.title} — {s.phase}
-            </option>
+          {interests.map((v) => (
+            <option key={v}>{v}</option>
           ))}
-          <option value="not-sure">Not sure yet</option>
         </select>
-        {errors.primaryInterest && (
-          <p className="mt-1 text-xs text-red-600">
-            {errors.primaryInterest.message}
-          </p>
-        )}
+        {error("primaryInterest")}
       </div>
-      <div>
-        <label className="block text-xs uppercase tracking-wider text-grey">
-          Message (optional)
+      <div className="form-field form-wide">
+        <label htmlFor="message">
+          What would you like to discuss? <span>(optional)</span>
         </label>
         <textarea
-          {...register("message")}
+          id="message"
+          name="message"
           rows={4}
-          className="mt-1 w-full border-b border-grey bg-transparent py-2 text-sm focus:border-gold focus:outline-none"
+          maxLength={3000}
+          {...invalid("message")}
         />
+        {error("message")}
       </div>
-      {/* Honeypot field */}
-      <input
-        type="text"
-        {...register("website")}
-        className="hidden"
-        tabIndex={-1}
-        autoComplete="off"
-      />
-      <button type="submit" disabled={isSubmitting} className="btn-primary">
-        {isSubmitting ? "Sending..." : "Send Message"}
-      </button>
+      <div className="honeypot" aria-hidden="true">
+        <label htmlFor="website">Leave this field empty</label>
+        <input id="website" name="website" tabIndex={-1} autoComplete="off" />
+      </div>
+      <p className="form-help form-wide">
+        * Required. Please keep sensitive business details out of this form. See{" "}
+        <Link href="/privacy">how website information is handled</Link>.
+      </p>
+      <div className="form-wide">
+        <button
+          className="button button-dark"
+          type="submit"
+          disabled={status === "sending"}
+        >
+          {status === "sending" ? "Sending…" : "Send Message"}
+          <span aria-hidden="true">↗</span>
+        </button>
+      </div>
       {status === "error" && (
-        <p className="text-xs text-red-600">
-          Something went wrong. Please try again.
-        </p>
+        <div
+          className="form-error form-wide"
+          role="alert"
+          ref={notice}
+          tabIndex={-1}
+        >
+          {message}
+        </div>
       )}
+      <noscript>
+        <p className="form-help form-wide">
+          Enable JavaScript to send a message, or use the direct scheduling link
+          above when available.
+        </p>
+      </noscript>
     </form>
   );
 }

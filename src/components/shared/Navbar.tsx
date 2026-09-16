@@ -1,169 +1,118 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Menu, X, ChevronDown } from "lucide-react";
-import { services } from "@/lib/content";
-import { cn } from "@/lib/utils";
-
-const NAV_LINKS = [
-  { label: "The Operating System", href: "/#operating-system" },
-  { label: "Industries", href: "/industries" },
-  { label: "About", href: "/about" },
-  { label: "Resources", href: "/resources" },
+import { usePathname } from "next/navigation";
+import Brand from "./Brand";
+import { site } from "@/lib/site";
+const links = [
+  ["AI Adoption Review", "/services"],
+  ["The Four Rs", "/#method"],
+  ["About", "/about"],
+  ["FAQ", "/faq"],
 ];
-
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [servicesOpen, setServicesOpen] = useState(false);
-
+  const [open, setOpen] = useState(false);
+  const path = usePathname();
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 80);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
+    if (!open) return;
+    function key(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        button.current?.focus();
+      }
+      if (e.key === "Tab") {
+        const list = [
+          button.current,
+          ...Array.from(
+            panel.current?.querySelectorAll<HTMLAnchorElement>("a") || [],
+          ),
+        ].filter(Boolean) as HTMLElement[];
+        const first = list[0],
+          last = list[list.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+        if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", key);
+    const media = window.matchMedia("(min-width: 960px)");
+    const close = () => {
+      if (media.matches) setOpen(false);
+    };
+    media.addEventListener("change", close);
+    return () => {
+      document.removeEventListener("keydown", key);
+      media.removeEventListener("change", close);
+    };
+  }, [open]);
   return (
     <>
-      <header
-        className={cn(
-          "sticky top-0 z-50 w-full transition-colors duration-200",
-          scrolled
-            ? "border-b border-ink/10 bg-cream/95 backdrop-blur"
-            : "bg-transparent"
-        )}
-      >
-        <div className="container-content flex h-20 items-center justify-between">
-          <Link href="/" className="font-display text-lg tracking-wide">
-            INTER&middot;MIX&middot;AI
-          </Link>
-
-          <nav className="hidden items-center gap-8 md:flex">
-            <div
-              className="relative"
-              onMouseEnter={() => setServicesOpen(true)}
-              onMouseLeave={() => setServicesOpen(false)}
-            >
-              <button className="flex items-center gap-1 text-sm text-ink hover:text-charcoal">
-                Services <ChevronDown size={14} />
-              </button>
-              {servicesOpen && (
-                <div className="absolute left-0 top-full w-[560px] rounded border border-ink/10 bg-cream p-6 shadow-lg">
-                  <div className="grid grid-cols-2 gap-6">
-                    <ul className="space-y-4">
-                      {services.map((s) => (
-                        <li key={s.slug}>
-                          <Link
-                            href={`/services/${s.slug}`}
-                            className="block"
-                          >
-                            <div className="text-sm font-semibold">
-                              {s.title} —{" "}
-                              <span className="text-gold">{s.phase}</span>
-                            </div>
-                            <div className="mt-0.5 text-xs text-grey">
-                              {s.cardOutcome}
-                            </div>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="rounded border border-ink/10 bg-ink p-5 text-cream">
-                      <p className="text-sm">
-                        Not sure where to start? Take the Readiness
-                        Assessment.
-                      </p>
-                      <Link
-                        href="/services/ai-readiness-assessment"
-                        className="mt-3 inline-block text-sm text-gold underline"
-                      >
-                        Learn more &rarr;
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            {NAV_LINKS.map((link) => (
+      <header className="site-header">
+        <div className="container-content header-inner">
+          <Brand />
+          <nav className="desktop-nav" aria-label="Main navigation">
+            {links.map(([label, href]) => (
               <Link
-                key={link.href}
-                href={link.href}
-                className="text-sm text-ink hover:text-charcoal"
+                key={href}
+                href={href}
+                aria-current={path === href ? "page" : undefined}
               >
-                {link.label}
+                {label}
               </Link>
             ))}
           </nav>
-
-          <div className="hidden md:block">
-            <Link href="/contact" className="btn-primary text-sm">
-              Book a Discovery Call
-            </Link>
-          </div>
-
+          <Link className="button button-outline header-cta" href="/contact">
+            {site.cta}
+            <span aria-hidden="true">↗</span>
+          </Link>
           <button
-            className="md:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
+            ref={button}
+            className="menu-toggle"
+            aria-expanded={open}
+            aria-controls={open ? "mobile-navigation" : undefined}
+            onClick={() => setOpen(!open)}
           >
-            <Menu size={24} />
+            {open ? "Close" : "Menu"}
+            <span aria-hidden="true">{open ? "×" : "☰"}</span>
           </button>
         </div>
-      </header>
-
-      {mobileOpen && (
-        <div className="fixed inset-0 z-[60] flex flex-col bg-cream p-6 md:hidden">
-          <div className="flex items-center justify-between">
-            <span className="font-display text-lg">INTER&middot;MIX&middot;AI</span>
-            <button onClick={() => setMobileOpen(false)} aria-label="Close menu">
-              <X size={24} />
-            </button>
-          </div>
-          <nav className="mt-10 flex flex-1 flex-col gap-2">
-            <details className="border-b border-ink/10 py-3">
-              <summary className="min-h-[48px] text-lg">Services</summary>
-              <ul className="mt-2 space-y-3 pl-2">
-                {services.map((s) => (
-                  <li key={s.slug}>
-                    <Link
-                      href={`/services/${s.slug}`}
-                      className="block min-h-[48px] py-2 text-base"
-                      onClick={() => setMobileOpen(false)}
-                    >
-                      {s.title} — {s.phase}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </details>
-            {NAV_LINKS.map((link) => (
+        {open && (
+          <div ref={panel} id="mobile-navigation" className="mobile-navigation">
+            <nav aria-label="Mobile navigation">
+              {links.map(([label, href]) => (
+                <Link onClick={() => setOpen(false)} key={href} href={href}>
+                  {label}
+                </Link>
+              ))}
               <Link
-                key={link.href}
-                href={link.href}
-                className="flex min-h-[48px] items-center border-b border-ink/10 text-lg"
-                onClick={() => setMobileOpen(false)}
+                onClick={() => setOpen(false)}
+                className="button button-gold"
+                href="/contact"
               >
-                {link.label}
+                {site.cta}
+                <span aria-hidden="true">↗</span>
               </Link>
-            ))}
-          </nav>
-          <Link
-            href="/contact"
-            className="btn-primary mt-6 w-full text-base"
-            onClick={() => setMobileOpen(false)}
-          >
-            Book a Discovery Call
+            </nav>
+          </div>
+        )}
+      </header>
+      {path !== "/contact" && (
+        <div className="mobile-booking">
+          <Link className="button button-gold" href="/contact">
+            {site.cta}
+            <span>
+              {site.sessionMinutes} min <span aria-hidden="true">↗</span>
+            </span>
           </Link>
         </div>
       )}
-
-      {/* Sticky mobile CTA bar */}
-      <div className="fixed bottom-0 left-0 z-40 w-full border-t border-ink/10 bg-cream p-3 md:hidden">
-        <Link href="/contact" className="btn-primary w-full text-sm">
-          Book a Discovery Call
-        </Link>
-      </div>
     </>
   );
 }

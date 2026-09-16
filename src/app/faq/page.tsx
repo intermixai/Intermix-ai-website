@@ -1,22 +1,40 @@
-import type { Metadata } from "next";
-import FAQAccordion from "@/components/sections/FAQAccordion";
+import { site, pageMetadata } from "@/lib/site";
 import CTABanner from "@/components/shared/CTABanner";
-
-export const metadata: Metadata = {
-  title: "Frequently Asked Questions | Intermix AI",
-  description:
-    "Answers to common questions about the Intermix Operating System and engaging Intermix AI for enterprise AI adoption.",
-};
-
-export default function FAQPage() {
+export const metadata = pageMetadata(
+  "Frequently asked questions",
+  "Answers about the AI Adoption Review, the first executive session, scope, governance and next steps.",
+  "/faq",
+);
+export default function FAQ() {
   return (
     <>
-      <section className="section-y bg-cream">
+      <section className="page-hero">
         <div className="container-content">
-          <h1 className="mb-16 text-center text-3xl md:text-5xl">
-            Frequently Asked Questions
+          <p className="eyebrow">Questions & answers</p>
+          <h1>
+            Clarity starts
+            <br />
+            <em>with a conversation.</em>
           </h1>
-          <FAQAccordion />
+          <p className="lead">
+            A few things you may want to know before we speak.
+          </p>
+        </div>
+      </section>
+      <section className="section-y">
+        <div className="container-content faq-list">
+          {site.faqs.map((faq, i) => (
+            <details name="faq" key={faq.question}>
+              <summary>
+                <span className="faq-index">0{i + 1}</span>
+                {faq.question}
+                <span className="faq-plus" aria-hidden="true">
+                  +
+                </span>
+              </summary>
+              <p>{faq.answer}</p>
+            </details>
+          ))}
         </div>
       </section>
       <CTABanner />
