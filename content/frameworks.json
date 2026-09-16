@@ -1,0 +1,20 @@
+[
+  {
+    "slug": "operating-system-executive-overview",
+    "title": "The Operating System — Executive Overview",
+    "format": "PDF",
+    "description": "A one-page explainer of the full method, designed to be forwarded internally or printed for a board meeting."
+  },
+  {
+    "slug": "ai-readiness-self-check",
+    "title": "The AI Readiness Self-Check",
+    "format": "Worksheet",
+    "description": "A short diagnostic worksheet mirroring the paid Readiness Assessment at a lighter, self-serve level."
+  },
+  {
+    "slug": "board-briefing-template",
+    "title": "Board Briefing Template: Justifying Your First AI Pilot",
+    "format": "Slide Template",
+    "description": "A fill-in-the-blank slide template helping an internal champion build the business case using Operating System language."
+  }
+]
