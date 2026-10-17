@@ -1,0 +1,101 @@
+{
+  "name": "Intermix AI",
+  "tagline": "From AI ambition to adoption.",
+  "cta": "Schedule a Session",
+  "sessionMinutes": 45,
+  "audience": "For mid-market and enterprise leadership teams",
+  "heroBody": "Turn scattered AI activity into a secure, practical and repeatable path forward. Know where you are ready, which opportunities matter and what to do next.",
+  "founder": {
+    "name": "Christopher Cedeno",
+    "role": "Founder & CEO",
+    "bio": "Christopher brings experience across enterprise software sales, customer enablement, renewals and customer success. That experience informs Intermix AI’s focus on the people, workflows and decisions that turn technology into everyday business value."
+  },
+  "phases": [
+    {
+      "name": "Review",
+      "description": "Understand your goals, workflows, data, technology and readiness for AI.",
+      "output": "A clear view of readiness"
+    },
+    {
+      "name": "Reframe",
+      "description": "Connect opportunities to business value, feasibility, risk and time to impact.",
+      "output": "Priorities leadership can act on"
+    },
+    {
+      "name": "Run",
+      "description": "Turn the chosen priorities into focused implementations with owners and success measures.",
+      "output": "Evidence from real workflows"
+    },
+    {
+      "name": "Rise",
+      "description": "Expand what works, strengthen adoption and build repeatable ways of operating.",
+      "output": "A path to sustainable adoption"
+    }
+  ],
+  "maturity": [
+    {
+      "name": "Use AI",
+      "description": "Individual tools and experiments."
+    },
+    {
+      "name": "Work with AI",
+      "description": "AI supports people in defined workflows."
+    },
+    {
+      "name": "Operate with AI",
+      "description": "AI becomes part of repeatable business systems."
+    },
+    {
+      "name": "Intermix AI",
+      "description": "People, AI and operations work together in everyday execution."
+    }
+  ],
+  "deliverables": [
+    {
+      "name": "Readiness findings",
+      "description": "An executive view of strengths, gaps and constraints across governance, data, workflows, technology and adoption."
+    },
+    {
+      "name": "Prioritized use cases",
+      "description": "A ranked portfolio based on business value, feasibility, risk, strategic fit and speed to measurable impact."
+    },
+    {
+      "name": "A 90-day implementation roadmap",
+      "description": "A sequenced path with recommended pilots, owners, dependencies, success measures and next decisions."
+    }
+  ],
+  "faqs": [
+    {
+      "question": "Who is the AI Adoption Review for?",
+      "answer": "Leadership teams in mid-market and enterprise organizations that have begun using AI, or are preparing to, and need a shared view of readiness, priorities and the path to execution."
+    },
+    {
+      "question": "What will leadership receive?",
+      "answer": "Readiness findings, prioritized use cases and a sequenced 90-day implementation roadmap. The roadmap identifies recommended pilots, owners, dependencies, success measures and next decisions."
+    },
+    {
+      "question": "We already use Copilot or Gemini. Where does Intermix AI fit?",
+      "answer": "Access to technology is a useful foundation. The Review helps leadership determine where those tools create business value, what must change around people and process, and how to scale usage safely."
+    },
+    {
+      "question": "What happens in the first session?",
+      "answer": "A 45-minute executive conversation to identify your most important business outcome, understand current adoption barriers and determine whether an AI Adoption Review is the right next step. If there is a fit, we define the scope, participants and decision point together."
+    },
+    {
+      "question": "Is the 90-day roadmap the length of the Review?",
+      "answer": "No. It is the implementation horizon the roadmap covers. We agree the Review’s scope, timing and required participants with you before the engagement starts."
+    },
+    {
+      "question": "How are security and governance addressed?",
+      "answer": "The Review considers data, security, governance and human oversight alongside business value. Readiness findings and the roadmap identify constraints and dependencies to address before implementation."
+    },
+    {
+      "question": "How is the engagement scoped?",
+      "answer": "Scope and investment are discussed directly after we understand your objectives, environment and participants."
+    },
+    {
+      "question": "What comes after the Review?",
+      "answer": "Leadership decides what to pursue, defer or strengthen. Where appropriate, the next steps are focused Run initiatives and then Rise: expanding what works and strengthening adoption. Further work is scoped separately."
+    }
+  ]
+}
