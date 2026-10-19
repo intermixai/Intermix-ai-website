@@ -1,17 +1,20 @@
-"""Build the Intermix AI Home Screen icon set.
+"""Build the Intermix AI Home Screen icon set: gold italic "mix" with a small
+ivory "AI" set like an exponent, on the brand charcoal.
 
-The icon is the gold italic "mix" from the site wordmark (Brand.tsx), centered
-on the brand charcoal. Colors come from src/app/globals.css: --ink #1c1c1e and
---gold-light #c9a773 (the color of "mix" in the header logo).
+Colors and type follow the site wordmark (Brand.tsx, globals.css):
+  charcoal --ink #1c1c1e, gold --gold-light #c9a773 ("mix"),
+  ivory --cream #f7f3ec ("AI"), "mix" in Georgia Italic,
+  "AI" in Arial regular, uppercase, letter-spaced (2px at 11px).
 
-The site sets "mix" in Georgia Italic. Georgia is not redistributable, so this
-script uses Gelasio Italic (SIL Open Font License), which is metric-compatible
-with Georgia. Download Gelasio-Italic[wght].ttf from Google Fonts and pass its
-path:
+Georgia and Arial are not redistributable, so this script uses their
+metric-compatible open equivalents:
+  Gelasio Italic (SIL OFL, Google Fonts) for "mix"
+  Liberation Sans Regular (SIL OFL) for "AI"
 
-    python3 scripts/build-home-screen-icon.py path/to/Gelasio-Italic[wght].ttf
+    python3 scripts/build-home-screen-icon.py \
+        path/to/Gelasio-Italic[wght].ttf path/to/LiberationSans-Regular.ttf
 
-Outputs (all opaque RGB PNGs, square, no rounded corners; iOS masks corners):
+Outputs (opaque RGB PNGs, square; iOS applies the rounded corners):
     design/home-screen-icon/intermix-ai-icon-1024.png   high-resolution master
     src/app/apple-icon.png                              180x180, linked by Next.js
     public/apple-touch-icon.png                         180x180, iOS default path
@@ -26,68 +29,88 @@ from PIL import Image, ImageChops, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 CHARCOAL = (0x1C, 0x1C, 0x1E)
 GOLD = (0xC9, 0xA7, 0x73)
-TEXT = "mix"
+IVORY = (0xF7, 0xF3, 0xEC)
+
 MASTER = 1024
-SCALE = 4  # draw at 4096 px, then downsample for smooth edges
-WORD_WIDTH = 0.60  # ink width as a share of the canvas
-TRACKING_EM = -0.038  # site: letter-spacing -1.4px at the 37px "mix"
-OPTICAL_LIFT = 0.012  # raise the x-height band slightly above true center
+SS = 4  # final drawing at 4096 px, downsampled for smooth edges
+P = 1600  # working size of "mix" before scaling into the icon
+
+MIX_TRACKING = -0.038  # site: -1.4px at the 37px "mix"
+AI_RATIO = 0.36  # "AI" size relative to "mix" (site uses ~0.30; larger so it reads at icon size)
+AI_TRACKING = 0.10  # site: 2px at 11px = 0.18em; tightened so the pair reads as one mark
+AI_GAP = 0.20  # space after the "x", as a share of the AI cap height
+COMPOSITION_WIDTH = 0.66  # ink width of "mixAI" as a share of the canvas
+OPTICAL_LIFT = 0.012  # x-height band sits slightly above true center
+OPTICAL_SHIFT = 0.008  # nudge right: the light "AI" carries less weight than "mix"
 
 
-def render(font_path: str) -> Image.Image:
-    size = MASTER * SCALE
-    probe = 1000
-    font = ImageFont.truetype(font_path, probe)
-    try:
-        font.set_variation_by_axes([400])  # regular italic, as on the site
-    except (OSError, ValueError):
-        pass
-
-    def layout(f, px):
-        xs, x = [], 0.0
-        for i, ch in enumerate(TEXT):
-            # Width of the preceding text includes kerning; add site tracking.
-            x = f.getlength(TEXT[:i]) + i * TRACKING_EM * px
-            xs.append(x)
-        return xs
-
-    # Measure ink width at the probe size, then scale to the target width.
-    def ink_box(f, px):
-        xs = layout(f, px)
-        boxes = [f.getbbox(ch) for ch in TEXT]
-        left = min(x + b[0] for x, b in zip(xs, boxes))
-        right = max(x + b[2] for x, b in zip(xs, boxes))
-        return left, right
-
-    l, r = ink_box(font, probe)
-    px = probe * (WORD_WIDTH * size) / (r - l)
-    font = ImageFont.truetype(font_path, round(px))
-    try:
-        font.set_variation_by_axes([400])
-    except (OSError, ValueError):
-        pass
-
-    xs = layout(font, px)
-    l, r = ink_box(font, px)
-    # Vertical: center the x-height band (the body of "m", "i", "x").
-    xb = font.getbbox("x")
-    body_center = (xb[1] + xb[3]) / 2
-    ox = size / 2 - (l + r) / 2
-    oy = size / 2 - body_center - OPTICAL_LIFT * size
-
-    img = Image.new("RGB", (size, size), CHARCOAL)
-    draw = ImageDraw.Draw(img)
-    for x, ch in zip(xs, TEXT):
-        draw.text((ox + x, oy), ch, font=font, fill=GOLD)
-    # Italic glyph boxes are not the visible ink; recenter horizontally on the
-    # actual gold pixels. The margins are uniform charcoal, so wrapping is safe.
-    ink = ImageChops.difference(img, Image.new("RGB", img.size, CHARCOAL))
-    box = ink.convert("L").point(lambda v: 255 if v > 40 else 0).getbbox()
-    img = ImageChops.offset(img, round(size / 2 - (box[0] + box[2]) / 2), 0)
-    return img.resize((MASTER, MASTER), Image.LANCZOS)
+def font(path, px, weight=None):
+    f = ImageFont.truetype(path, round(px))
+    if weight is not None:
+        try:
+            f.set_variation_by_axes([weight])
+        except (OSError, ValueError):
+            pass
+    return f
 
 
-def save(img: Image.Image, rel: str, px: int) -> None:
+def ink_bbox(img, threshold=40):
+    diff = ImageChops.difference(img, Image.new("RGB", img.size, CHARCOAL))
+    return diff.convert("L").point(lambda v: 255 if v > threshold else 0).getbbox()
+
+
+def draw_tracked(draw, origin, text, f, px, tracking, fill):
+    x0, y0 = origin
+    for i, ch in enumerate(text):
+        x = f.getlength(text[:i]) + i * tracking * px  # includes kerning
+        draw.text((x0 + x, y0), ch, font=f, fill=fill)
+
+
+def compose(mix_path, ai_path):
+    """Lay out "mixAI" at a large working size; return the crop and the
+    vertical center of the x-height band within that crop."""
+    W, H = int(P * 3.2), int(P * 2)
+    img = Image.new("RGB", (W, H), CHARCOAL)
+    d = ImageDraw.Draw(img)
+    mf = font(mix_path, P, 400)
+    mo = (int(P * 0.3), int(P * 0.5))
+    draw_tracked(d, mo, "mix", mf, P, MIX_TRACKING, GOLD)
+    mix_box = ink_bbox(img)
+    xb = mf.getbbox("x")
+    body_top, body_bottom = mo[1] + xb[1], mo[1] + xb[3]
+
+    A = AI_RATIO * P
+    af = font(ai_path, A)
+    cap = af.getbbox("A")  # (left, top, right, bottom) relative to draw origin
+    cap_h = cap[3] - cap[1]
+    # Superscript: AI cap top aligns with the top of the i dot.
+    ai_top = mix_box[1]
+    ai_y = ai_top - cap[1]
+    # Hug the x: find its rightmost ink in the rows the AI occupies.
+    band = img.crop((0, ai_top, W, min(ai_top + cap_h, H)))
+    right = ink_bbox(band)[2]
+    ai_x = right + AI_GAP * cap_h - cap[0]
+    draw_tracked(d, (ai_x, ai_y), "AI", af, A, AI_TRACKING, IVORY)
+
+    box = ink_bbox(img)
+    crop = img.crop(box)
+    body_center = (body_top + body_bottom) / 2 - box[1]
+    return crop, body_center
+
+
+def render(mix_path, ai_path):
+    crop, body_center = compose(mix_path, ai_path)
+    size = MASTER * SS
+    k = COMPOSITION_WIDTH * size / crop.width
+    piece = crop.resize((round(crop.width * k), round(crop.height * k)), Image.LANCZOS)
+    x = round(size / 2 - piece.width / 2 + OPTICAL_SHIFT * size)
+    y = round(size / 2 - OPTICAL_LIFT * size - body_center * k)
+    canvas = Image.new("RGB", (size, size), CHARCOAL)
+    canvas.paste(piece, (x, y))
+    return canvas.resize((MASTER, MASTER), Image.LANCZOS)
+
+
+def save(img, rel, px):
     out = ROOT / rel
     out.parent.mkdir(parents=True, exist_ok=True)
     im = img if px == img.width else img.resize((px, px), Image.LANCZOS)
@@ -96,9 +119,9 @@ def save(img: Image.Image, rel: str, px: int) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         sys.exit(__doc__)
-    master = render(sys.argv[1])
+    master = render(sys.argv[1], sys.argv[2])
     save(master, "design/home-screen-icon/intermix-ai-icon-1024.png", 1024)
     save(master, "src/app/apple-icon.png", 180)
     save(master, "public/apple-touch-icon.png", 180)
