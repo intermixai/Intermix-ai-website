@@ -15,6 +15,10 @@ export const metadata: Metadata = {
     ? { index: true, follow: true }
     : { index: false, follow: false },
   icons: { icon: "/icon.svg" },
+  applicationName: "Intermix AI",
+  // Name Safari suggests for "Add to Home Screen". The icon itself comes from
+  // src/app/apple-icon.png (linked by Next.js) and /apple-touch-icon.png.
+  other: { "apple-mobile-web-app-title": "Intermix AI" },
 };
 export default function RootLayout({
   children,
