@@ -1,116 +1,108 @@
-"""Build the Intermix AI Home Screen icon set: gold italic "mix" with a small
-ivory "AI" set like an exponent, on the brand charcoal.
+"""Build the Intermix AI Home Screen icon from the full website logo.
 
-Colors and type follow the site wordmark (Brand.tsx, globals.css):
-  charcoal --ink #1c1c1e, gold --gold-light #c9a773 ("mix"),
-  ivory --cream #f7f3ec ("AI"), "mix" in Georgia Italic,
-  "AI" in Arial regular, uppercase, letter-spaced (2px at 11px).
+The logo is rendered in a real browser from the site's own markup and CSS
+(src/components/shared/Brand.tsx and the .brand rules in globals.css), so its
+typography, spacing, colors and proportions are exactly the approved logo:
+"Inter" in ivory, "mix" in gold italic, and the small raised ivory "AI".
+The rendered logo is then centered on a solid charcoal square.
 
-Georgia and Arial are not redistributable, so this script uses their
-metric-compatible open equivalents:
-  Gelasio Italic (SIL OFL, Google Fonts) for "mix"
-  Liberation Sans Regular (SIL OFL) for "AI"
+The site uses Arial and Georgia, which are not redistributable. For an exact
+layout this script maps them to their metric-compatible open equivalents:
+  Arial   -> Liberation Sans Regular (SIL OFL)
+  Georgia -> Gelasio Italic (SIL OFL, Google Fonts)
+
+Requires Python Playwright with Chromium:
 
     python3 scripts/build-home-screen-icon.py \
-        path/to/Gelasio-Italic[wght].ttf path/to/LiberationSans-Regular.ttf
+        path/to/LiberationSans-Regular.ttf path/to/Gelasio-Italic[wght].ttf
 
-Outputs (opaque RGB PNGs, square; iOS applies the rounded corners):
+Outputs (opaque RGB PNGs, square, no rounded corners; iOS masks the corners):
     design/home-screen-icon/intermix-ai-icon-1024.png   high-resolution master
     src/app/apple-icon.png                              180x180, linked by Next.js
     public/apple-touch-icon.png                         180x180, iOS default path
     public/icons/icon-192.png, public/icons/icon-512.png  web app manifest
 """
 
+import re
 import sys
+import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFont
+from PIL import Image, ImageChops
+from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
-CHARCOAL = (0x1C, 0x1C, 0x1E)
-GOLD = (0xC9, 0xA7, 0x73)
-IVORY = (0xF7, 0xF3, 0xEC)
-
+BACKGROUND = (0x18, 0x18, 0x1A)  # site header, where the logo appears
 MASTER = 1024
-SS = 4  # final drawing at 4096 px, downsampled for smooth edges
-P = 1600  # working size of "mix" before scaling into the icon
-
-MIX_TRACKING = -0.038  # site: -1.4px at the 37px "mix"
-AI_RATIO = 0.36  # "AI" size relative to "mix" (site uses ~0.30; larger so it reads at icon size)
-AI_TRACKING = 0.10  # site: 2px at 11px = 0.18em; tightened so the pair reads as one mark
-AI_GAP = 0.20  # space after the "x", as a share of the AI cap height
-COMPOSITION_WIDTH = 0.66  # ink width of "mixAI" as a share of the canvas
-OPTICAL_LIFT = 0.012  # x-height band sits slightly above true center
-OPTICAL_SHIFT = 0.008  # nudge right: the light "AI" carries less weight than "mix"
+LOGO_WIDTH = 0.82  # logo ink width as a share of the icon: 9% padding each side
+RENDER_SCALE = 24  # browser device pixel ratio for a crisp, large rendering
+CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 
 
-def font(path, px, weight=None):
-    f = ImageFont.truetype(path, round(px))
-    if weight is not None:
-        try:
-            f.set_variation_by_axes([weight])
-        except (OSError, ValueError):
-            pass
-    return f
+def brand_css() -> str:
+    """Copy the logo's rules verbatim from globals.css."""
+    css = (ROOT / "src/app/globals.css").read_text()
+    root = re.search(r":root\s*\{[^}]*\}", css).group(0)
+    rules = re.findall(r"(?m)^\.brand(?: span| sup)?\s*\{[^}]*\}", css)
+    if len(rules) < 3:
+        sys.exit("Could not find the .brand rules in globals.css")
+    return root + "\n" + "\n".join(rules[:3])
 
 
-def ink_bbox(img, threshold=40):
-    diff = ImageChops.difference(img, Image.new("RGB", img.size, CHARCOAL))
-    return diff.convert("L").point(lambda v: 255 if v > threshold else 0).getbbox()
+def render_logo(arial: str, georgia_italic: str) -> Image.Image:
+    bg = "#%02x%02x%02x" % BACKGROUND
+    html = f"""<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face {{ font-family: "Arial"; src: url("file://{arial}"); }}
+@font-face {{ font-family: "Georgia"; font-style: italic;
+  src: url("file://{georgia_italic}"); }}
+{brand_css()}
+html, body {{ margin: 0; background: {bg}; }}
+body {{ font-family: Arial, Helvetica, sans-serif; font-size: 16px;
+  line-height: 1.65; -webkit-font-smoothing: antialiased; }}
+header {{ color: var(--cream); padding: 40px; display: inline-block; }}
+a {{ color: inherit; text-decoration: none; }}
+</style></head><body><header>
+<a class="brand" href="/" aria-label="Intermix AI home">Inter<span>mix</span><sup>AI</sup></a>
+</header></body></html>"""
+    with tempfile.TemporaryDirectory() as tmp:
+        page_file = Path(tmp) / "logo.html"
+        page_file.write_text(html)
+        shot = Path(tmp) / "logo.png"
+        with sync_playwright() as p:
+            browser = p.chromium.launch(executable_path=CHROMIUM)
+            page = browser.new_page(
+                viewport={"width": 400, "height": 160},
+                device_scale_factor=RENDER_SCALE,
+            )
+            page.goto(page_file.as_uri())
+            page.evaluate("document.fonts.ready")
+            fams = page.evaluate(
+                "[...document.fonts].filter(f => f.status === 'loaded').map(f => f.family)"
+            )
+            if not {'"Arial"', '"Georgia"'} <= set(fams) and not {"Arial", "Georgia"} <= set(fams):
+                sys.exit(f"Fonts did not load: {fams}")
+            page.locator("header").screenshot(path=str(shot))
+            browser.close()
+        return Image.open(shot).convert("RGB")
 
 
-def draw_tracked(draw, origin, text, f, px, tracking, fill):
-    x0, y0 = origin
-    for i, ch in enumerate(text):
-        x = f.getlength(text[:i]) + i * tracking * px  # includes kerning
-        draw.text((x0 + x, y0), ch, font=f, fill=fill)
+def ink_crop(img: Image.Image) -> Image.Image:
+    diff = ImageChops.difference(img, Image.new("RGB", img.size, BACKGROUND))
+    box = diff.convert("L").point(lambda v: 255 if v > 24 else 0).getbbox()
+    return img.crop(box)
 
 
-def compose(mix_path, ai_path):
-    """Lay out "mixAI" at a large working size; return the crop and the
-    vertical center of the x-height band within that crop."""
-    W, H = int(P * 3.2), int(P * 2)
-    img = Image.new("RGB", (W, H), CHARCOAL)
-    d = ImageDraw.Draw(img)
-    mf = font(mix_path, P, 400)
-    mo = (int(P * 0.3), int(P * 0.5))
-    draw_tracked(d, mo, "mix", mf, P, MIX_TRACKING, GOLD)
-    mix_box = ink_bbox(img)
-    xb = mf.getbbox("x")
-    body_top, body_bottom = mo[1] + xb[1], mo[1] + xb[3]
-
-    A = AI_RATIO * P
-    af = font(ai_path, A)
-    cap = af.getbbox("A")  # (left, top, right, bottom) relative to draw origin
-    cap_h = cap[3] - cap[1]
-    # Superscript: AI cap top aligns with the top of the i dot.
-    ai_top = mix_box[1]
-    ai_y = ai_top - cap[1]
-    # Hug the x: find its rightmost ink in the rows the AI occupies.
-    band = img.crop((0, ai_top, W, min(ai_top + cap_h, H)))
-    right = ink_bbox(band)[2]
-    ai_x = right + AI_GAP * cap_h - cap[0]
-    draw_tracked(d, (ai_x, ai_y), "AI", af, A, AI_TRACKING, IVORY)
-
-    box = ink_bbox(img)
-    crop = img.crop(box)
-    body_center = (body_top + body_bottom) / 2 - box[1]
-    return crop, body_center
-
-
-def render(mix_path, ai_path):
-    crop, body_center = compose(mix_path, ai_path)
-    size = MASTER * SS
-    k = COMPOSITION_WIDTH * size / crop.width
-    piece = crop.resize((round(crop.width * k), round(crop.height * k)), Image.LANCZOS)
-    x = round(size / 2 - piece.width / 2 + OPTICAL_SHIFT * size)
-    y = round(size / 2 - OPTICAL_LIFT * size - body_center * k)
-    canvas = Image.new("RGB", (size, size), CHARCOAL)
-    canvas.paste(piece, (x, y))
+def compose(logo: Image.Image) -> Image.Image:
+    ss = 4
+    size = MASTER * ss
+    k = LOGO_WIDTH * size / logo.width
+    piece = logo.resize((round(logo.width * k), round(logo.height * k)), Image.LANCZOS)
+    canvas = Image.new("RGB", (size, size), BACKGROUND)
+    canvas.paste(piece, ((size - piece.width) // 2, (size - piece.height) // 2))
     return canvas.resize((MASTER, MASTER), Image.LANCZOS)
 
 
-def save(img, rel, px):
+def save(img: Image.Image, rel: str, px: int) -> None:
     out = ROOT / rel
     out.parent.mkdir(parents=True, exist_ok=True)
     im = img if px == img.width else img.resize((px, px), Image.LANCZOS)
@@ -121,7 +113,8 @@ def save(img, rel, px):
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         sys.exit(__doc__)
-    master = render(sys.argv[1], sys.argv[2])
+    arial, georgia = (str(Path(a).resolve()) for a in sys.argv[1:])
+    master = compose(ink_crop(render_logo(arial, georgia)))
     save(master, "design/home-screen-icon/intermix-ai-icon-1024.png", 1024)
     save(master, "src/app/apple-icon.png", 180)
     save(master, "public/apple-touch-icon.png", 180)
